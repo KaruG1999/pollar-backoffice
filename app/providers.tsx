@@ -38,7 +38,16 @@ export function Providers({ children }: { children: ReactNode }) {
   // fills any omitted UI fields with its own defaults.
   const appConfig: PollarConfig = {
     application: { name: "Pollar Wallet" },
-    styles: { accentColor: "#0560a9", emailEnabled: true, embeddedWallets: true },
+    styles: {
+      accentColor: "#0560a9",
+      emailEnabled: true, // login con código por email (OTP)
+      embeddedWallets: true, // wallets externas: Freighter / Albedo
+      // smartWallet (passkey/WebAuthn). Nota: el endpoint /auth/passkey/register
+      // de Pollar puede devolver 502 en testnet — el fallo es del lado del servidor.
+      smartWallet: true,
+      // Providers OAuth que el SDK soporta en el flujo de login.
+      providers: { google: true, github: true },
+    },
   };
 
   return (
