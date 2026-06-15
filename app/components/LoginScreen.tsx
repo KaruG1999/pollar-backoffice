@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { usePollar } from "@pollar/react";
 
 const keyConfigured =
@@ -13,17 +14,22 @@ export function LoginScreen() {
 
   return (
     <main className="flex w-full max-w-md flex-1 flex-col items-center justify-center gap-7 px-6 py-24 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-bold text-white shadow-sm">
-        P
-      </div>
+      <Image
+        src="/logo.png"
+        alt="Pollar"
+        width={88}
+        height={88}
+        priority
+        className="h-20 w-20 object-contain"
+      />
 
       <div className="flex flex-col items-center gap-3">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-tint px-3 py-1 text-xs font-medium text-brand">
+          <span className="h-1.5 w-1.5 rounded-full bg-brand" />
           Conectado a testnet
         </span>
         <h1 className="text-4xl font-bold tracking-tight">
-          <span className="text-blue-600">Pollar</span> Wallet
+          <span className="text-brand">Pollar</span> Wallet
         </h1>
         <p className="max-w-xs text-base leading-7 text-zinc-500">
           Conecta tu wallet de Pollar para ver tu saldo, enviar y recibir
@@ -35,7 +41,7 @@ export function LoginScreen() {
         type="button"
         onClick={openLoginModal}
         disabled={!keyConfigured}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand px-6 font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
       >
         Iniciar sesión con Pollar
       </button>

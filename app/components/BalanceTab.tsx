@@ -24,7 +24,7 @@ export function BalanceTab() {
           type="button"
           onClick={() => void refreshWalletBalance()}
           disabled={loading}
-          className="rounded-full px-3 py-1 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-50"
+          className="rounded-full px-3 py-1 text-sm font-medium text-brand transition-colors hover:bg-brand-tint disabled:opacity-50"
         >
           {loading ? "Actualizando…" : "Actualizar"}
         </button>

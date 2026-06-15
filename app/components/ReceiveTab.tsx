@@ -44,7 +44,7 @@ export function ReceiveTab() {
         <span className="break-all font-mono text-xs text-zinc-700">
           {walletAddress}
         </span>
-        <span className="shrink-0 text-sm font-medium text-blue-600">
+        <span className="shrink-0 text-sm font-medium text-brand">
           {copied ? "¡Copiado!" : "Copiar"}
         </span>
       </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { PollarProvider, type PollarConfig } from "@pollar/react";
 import type { PollarClientConfig, StellarNetwork } from "@pollar/core";
 // Styles for the Pollar-provided modals (login, send, receive, balance, ...).
@@ -20,12 +20,16 @@ export function Providers({ children }: { children: ReactNode }) {
   }));
 
   // PollarClient relies on browser APIs (WebCrypto, localStorage), so only
-  // construct it after mounting on the client. The same fallback renders on the
-  // server and on the first client paint, avoiding a hydration mismatch.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // construct it on the client. useSyncExternalStore returns the server
+  // snapshot (false) during SSR and the first paint, then the client snapshot
+  // (true) — giving a clean client-only mount with no hydration mismatch.
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
-  if (!mounted) {
+  if (!isClient) {
     return <div className="flex flex-1 items-center justify-center bg-white" />;
   }
 
@@ -34,7 +38,7 @@ export function Providers({ children }: { children: ReactNode }) {
   // fills any omitted UI fields with its own defaults.
   const appConfig: PollarConfig = {
     application: { name: "Pollar Wallet" },
-    styles: { accentColor: "#7c3aed", emailEnabled: true, embeddedWallets: true },
+    styles: { accentColor: "#0560a9", emailEnabled: true, embeddedWallets: true },
   };
 
   return (

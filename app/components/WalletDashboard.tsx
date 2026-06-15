@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { usePollar } from "@pollar/react";
 import { BalanceTab } from "./BalanceTab";
 import { SendTab } from "./SendTab";
@@ -38,9 +39,14 @@ export function WalletDashboard() {
       {/* Top navigation bar, mirroring the Pollar demo layout. */}
       <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3.5">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-            P
-          </div>
+          <Image
+            src="/logo.png"
+            alt="Pollar"
+            width={32}
+            height={32}
+            priority
+            className="h-7 w-7 object-contain"
+          />
           <span className="text-base font-semibold tracking-tight">Pollar</span>
           <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
             Wallet
@@ -53,7 +59,7 @@ export function WalletDashboard() {
               type="button"
               onClick={copyAddress}
               title="Copiar dirección"
-              className="rounded-lg bg-blue-700 px-3 py-1.5 font-mono text-xs font-medium text-white transition-colors hover:bg-blue-800"
+              className="rounded-lg bg-brand px-3 py-1.5 font-mono text-xs font-medium text-white transition-colors hover:bg-brand-dark"
             >
               {copied ? "¡Copiado!" : shortenAddress(walletAddress)}
             </button>
@@ -70,7 +76,7 @@ export function WalletDashboard() {
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 px-6 py-10">
         <h1 className="text-3xl font-bold tracking-tight">
-          Tu <span className="text-blue-600">wallet</span>
+          Tu <span className="text-brand">wallet</span>
         </h1>
 
         <nav
@@ -91,7 +97,7 @@ export function WalletDashboard() {
                 onClick={() => setActive(tab.id)}
                 className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   selected
-                    ? "bg-white text-blue-600 shadow-sm"
+                    ? "bg-white text-brand shadow-sm"
                     : "text-zinc-500 hover:text-zinc-900"
                 }`}
               >

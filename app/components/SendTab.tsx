@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePollar } from "@pollar/react";
 import type { TxBuildBody } from "@pollar/core";
 
@@ -12,6 +12,9 @@ type Status =
   | { kind: "submitting" }
   | { kind: "success"; hash: string }
   | { kind: "error"; message: string };
+
+const inputClass =
+  "rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint";
 
 export function SendTab({ onSent }: { onSent?: () => void }) {
   const { walletBalance, refreshWalletBalance, runTx, verified } = usePollar();
@@ -49,7 +52,7 @@ export function SendTab({ onSent }: { onSent?: () => void }) {
     selected != null &&
     status.kind !== "submitting";
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit || !selected) return;
 
@@ -79,7 +82,8 @@ export function SendTab({ onSent }: { onSent?: () => void }) {
       } else {
         setStatus({
           kind: "error",
-          message: outcome.details ?? outcome.resultCode ?? "La transacción falló.",
+          message:
+            outcome.details ?? outcome.resultCode ?? "La transacción falló.",
         });
       }
     } catch (err) {
@@ -93,19 +97,17 @@ export function SendTab({ onSent }: { onSent?: () => void }) {
   if (status.kind === "success") {
     return (
       <div className="flex flex-col items-center gap-4 py-4 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-2xl dark:bg-green-500/15">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-2xl text-green-600">
           ✓
         </div>
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          ¡Pago enviado!
-        </h2>
-        <p className="break-all font-mono text-xs text-zinc-500 dark:text-zinc-400">
+        <h2 className="text-lg font-semibold">¡Pago enviado!</h2>
+        <p className="break-all font-mono text-xs text-zinc-500">
           {status.hash}
         </p>
         <button
           type="button"
           onClick={() => (onSent ? onSent() : setStatus({ kind: "idle" }))}
-          className="rounded-full bg-violet-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-500"
+          className="rounded-xl bg-brand px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
         >
           Listo
         </button>
@@ -115,19 +117,17 @@ export function SendTab({ onSent }: { onSent?: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-        Enviar dinero
-      </h2>
+      <h2 className="text-lg font-semibold">Enviar dinero</h2>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Activo
-        </span>
+        <span className="text-sm font-medium text-zinc-700">Activo</span>
         <select
-          value={selected ? `${selected.code}-${selected.issuer ?? "native"}` : ""}
+          value={
+            selected ? `${selected.code}-${selected.issuer ?? "native"}` : ""
+          }
           onChange={(e) => setAssetKey(e.target.value)}
           disabled={assets.length === 0}
-          className="rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-violet-500 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-50"
+          className={`${inputClass} disabled:opacity-50`}
         >
           {assets.length === 0 && <option>Cargando activos…</option>}
           {assets.map((a) => (
@@ -142,18 +142,16 @@ export function SendTab({ onSent }: { onSent?: () => void }) {
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Destinatario
-        </span>
+        <span className="text-sm font-medium text-zinc-700">Destinatario</span>
         <input
           value={destination}
           onChange={(e) => setDestination(e.target.value)}
           placeholder="G…"
           spellCheck={false}
-          className="rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 font-mono text-sm text-zinc-900 outline-none focus:border-violet-500 dark:border-zinc-700 dark:text-zinc-50"
+          className={`${inputClass} font-mono`}
         />
         {destination !== "" && !destinationValid && (
-          <span className="text-xs text-red-600 dark:text-red-400">
+          <span className="text-xs text-red-600">
             Dirección de Stellar inválida (debe empezar con G y tener 56
             caracteres).
           </span>
@@ -161,37 +159,33 @@ export function SendTab({ onSent }: { onSent?: () => void }) {
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Monto
-        </span>
+        <span className="text-sm font-medium text-zinc-700">Monto</span>
         <input
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           inputMode="decimal"
           placeholder="0.00"
-          className="rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:border-zinc-700 dark:text-zinc-50"
+          className={inputClass}
         />
         {exceedsBalance && (
-          <span className="text-xs text-red-600 dark:text-red-400">
-            Saldo insuficiente.
-          </span>
+          <span className="text-xs text-red-600">Saldo insuficiente.</span>
         )}
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <span className="text-sm font-medium text-zinc-700">
           Memo <span className="text-zinc-400">(opcional)</span>
         </span>
         <input
           value={memo}
           onChange={(e) => setMemo(e.target.value)}
           placeholder="Nota para el destinatario"
-          className="rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:border-zinc-700 dark:text-zinc-50"
+          className={inputClass}
         />
       </label>
 
       {status.kind === "error" && (
-        <p className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-400">
+        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {status.message}
         </p>
       )}
@@ -199,13 +193,13 @@ export function SendTab({ onSent }: { onSent?: () => void }) {
       <button
         type="submit"
         disabled={!canSubmit}
-        className="mt-1 flex h-12 items-center justify-center rounded-full bg-violet-600 px-6 font-medium text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-1 flex h-12 items-center justify-center rounded-xl bg-brand px-6 font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
       >
         {status.kind === "submitting" ? "Enviando…" : "Enviar pago"}
       </button>
 
       {!verified && (
-        <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="text-center text-xs text-zinc-500">
           Verificando tu sesión…
         </p>
       )}
