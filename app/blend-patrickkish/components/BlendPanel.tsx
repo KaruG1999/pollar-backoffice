@@ -7,6 +7,7 @@ import { BlendLoginScreen } from "./BlendLoginScreen";
 import {
   blendConfig,
   getBlendNetwork,
+  getTxExplorerUrl,
   toTokenAmount,
 } from "../lib/config";
 import {
@@ -19,23 +20,22 @@ import {
   type BlendPositionSnapshot,
 } from "../lib/pool-data";
 import {
-  BLEND_TESTNET_USDC_CONTRACT,
+  blendUsdcTrustlineAsset,
   findUsdcBalance,
   findUsdcEnabledAsset,
 } from "../lib/usdc-asset";
 
+type BlendAction = "lend" | "withdraw";
+
 type TxStatus =
   | { kind: "idle" }
-  | { kind: "building" }
-  | { kind: "signing" }
-  | { kind: "success"; hash: string; label: string }
-  | { kind: "error"; message: string };
+  | { kind: "building"; action: BlendAction }
+  | { kind: "signing"; action: BlendAction }
+  | { kind: "success"; hash: string; label: string; action: BlendAction }
+  | { kind: "error"; message: string; action?: BlendAction };
 
 const inputClass =
   "rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint";
-
-const BLEND_FAUCET_URL = "https://testnet.blend.capital/";
-const BLEND_POOL_EXPLORER = `https://stellar.expert/explorer/testnet/contract/${blendConfig.poolId}`;
 
 export function BlendPanel() {
   const {
@@ -49,7 +49,6 @@ export function BlendPanel() {
     openEnabledAssetsModal,
     signAndSubmitTx,
     verified,
-    openLoginModal,
   } = usePollar();
 
   const network = useMemo(() => getBlendNetwork(), []);
@@ -72,8 +71,12 @@ export function BlendPanel() {
     return findUsdcEnabledAsset(enabledAssets.data.assets);
   }, [enabledAssets]);
 
-  const usdcTrustlineReady = usdcAsset?.trustlineEstablished ?? false;
+  const usdcTrustlineReady =
+    usdcAsset?.trustlineEstablished === true || usdcRecord != null;
   const usdcBalance = usdcRecord?.available ?? null;
+  const suppliedUsdc = position?.supplied ?? "0";
+  const suppliedAmount = Number(suppliedUsdc);
+  const canWithdrawFromPool = Number.isFinite(suppliedAmount) && suppliedAmount > 0;
 
   const refreshPosition = useCallback(async () => {
     if (!walletAddress) return;
@@ -118,20 +121,18 @@ export function BlendPanel() {
   }, [isAuthenticated, walletAddress, refreshPosition]);
 
   async function enableUsdcTrustline() {
-    if (!usdcAsset?.issuer) {
-      openEnabledAssetsModal();
-      return;
-    }
-
+    const asset = blendUsdcTrustlineAsset();
     setTrustlineBusy(true);
     setTrustlineMessage(null);
     try {
+      const sponsored =
+        usdcAsset?.issuer === asset.issuer ? usdcAsset.sponsored : false;
       const outcome = await setTrustline(
-        { code: usdcAsset.code, issuer: usdcAsset.issuer },
-        { sponsored: usdcAsset.sponsored },
+        { code: asset.code, issuer: asset.issuer },
+        { sponsored },
       );
       if (outcome.status === "success" || outcome.status === "pending") {
-        setTrustlineMessage("USDC trustline enabled. Refreshing balances…");
+        setTrustlineMessage(null);
         await refreshAssets();
         await refreshWalletBalance();
       } else {
@@ -152,16 +153,33 @@ export function BlendPanel() {
 
   async function submitBlendTx(
     label: string,
+    action: BlendAction,
     buildXdr: () => Promise<string>,
   ) {
-    setTxStatus({ kind: "building" });
+    setTxStatus({ kind: "building", action });
     try {
       const unsignedXdr = await buildXdr();
-      setTxStatus({ kind: "signing" });
+      setTxStatus({ kind: "signing", action });
       const outcome = await signAndSubmitTx(unsignedXdr);
 
       if (outcome.status === "success" || outcome.status === "pending") {
-        setTxStatus({ kind: "success", hash: outcome.hash, label });
+        if (!outcome.hash) {
+          setTxStatus({
+            kind: "error",
+            action,
+            message: parseBlendError(
+              "Transaction submitted but no hash was returned",
+            ),
+          });
+          return;
+        }
+
+        setTxStatus({
+          kind: "success",
+          hash: outcome.hash,
+          label,
+          action,
+        });
         void refreshWalletBalance();
         void refreshPosition();
         return;
@@ -169,6 +187,7 @@ export function BlendPanel() {
 
       setTxStatus({
         kind: "error",
+        action,
         message: parseBlendError(
           outcome.details ?? outcome.resultCode ?? "Transaction failed",
         ),
@@ -176,6 +195,7 @@ export function BlendPanel() {
     } catch (err) {
       setTxStatus({
         kind: "error",
+        action,
         message: parseBlendError(
           err instanceof Error ? err.message : "Unexpected error",
         ),
@@ -190,6 +210,7 @@ export function BlendPanel() {
     if (!usdcTrustlineReady) {
       setTxStatus({
         kind: "error",
+        action: "lend",
         message: parseBlendError("trustline entry is missing"),
       });
       return;
@@ -198,7 +219,7 @@ export function BlendPanel() {
     const amount = toTokenAmount(lendAmount);
     if (amount <= BigInt(0)) return;
 
-    await submitBlendTx("Lend", () =>
+    await submitBlendTx("Lend", "lend", () =>
       buildBlendSupplyXdr({
         pool: blendConfig.poolId,
         asset: blendConfig.usdcId,
@@ -216,7 +237,7 @@ export function BlendPanel() {
     const amount = toTokenAmount(withdrawAmount);
     if (amount <= BigInt(0)) return;
 
-    await submitBlendTx("Withdraw", () =>
+    await submitBlendTx("Withdraw", "withdraw", () =>
       buildBlendWithdrawXdr({
         pool: blendConfig.poolId,
         asset: blendConfig.usdcId,
@@ -232,6 +253,16 @@ export function BlendPanel() {
   }
 
   const busy = txStatus.kind === "building" || txStatus.kind === "signing";
+  const lendBusy = busy && txStatus.action === "lend";
+  const withdrawBusy = busy && txStatus.action === "withdraw";
+  const lendTxHash =
+    txStatus.kind === "success" && txStatus.action === "lend"
+      ? txStatus.hash
+      : null;
+  const withdrawTxHash =
+    txStatus.kind === "success" && txStatus.action === "withdraw"
+      ? txStatus.hash
+      : null;
 
   return (
     <div
@@ -248,25 +279,7 @@ export function BlendPanel() {
             Home
           </Link>
         </div>
-        <p className="text-sm text-zinc-600">
-          Lend Blend testnet USDC to the pool and withdraw with your Pollar
-          wallet.
-        </p>
       </header>
-
-      {!verified && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Session is still verifying. If you were logged out,{" "}
-          <button
-            type="button"
-            onClick={() => openLoginModal()}
-            className="font-medium text-brand underline"
-          >
-            sign in again
-          </button>
-          .
-        </div>
-      )}
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -286,37 +299,14 @@ export function BlendPanel() {
           {enabledAssets.step === "loading"
             ? "…"
             : usdcTrustlineReady
-              ? "enabled"
+              ? "ready"
               : "not set"}
         </p>
       </section>
 
       {!usdcTrustlineReady && (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          <h2 className="font-semibold">Set up Blend testnet USDC first</h2>
-          <p className="mt-2 leading-relaxed">
-            This pool uses{" "}
-            <strong>Blend testnet USDC</strong> (Soroban contract), not Circle
-            faucet USDC. Your lend failed because the wallet has no trustline
-            for that token yet.
-          </p>
-          <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
-            <li>Enable the USDC trustline in Pollar (button below).</li>
-            <li>
-              Get test tokens from the{" "}
-              <a
-                href={BLEND_FAUCET_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-brand underline"
-              >
-                Blend testnet faucet
-              </a>{" "}
-              (connect the same wallet address).
-            </li>
-            <li>Return here and lend a small amount (e.g. 0.5 USDC).</li>
-          </ol>
-          <div className="mt-4 flex flex-wrap gap-2">
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => void enableUsdcTrustline()}
@@ -334,45 +324,14 @@ export function BlendPanel() {
             </button>
           </div>
           {trustlineMessage && (
-            <p className="mt-3 text-sm">{trustlineMessage}</p>
+            <p className="mt-3 text-sm text-amber-950">{trustlineMessage}</p>
           )}
         </section>
       )}
 
-      <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
-        <h2 className="font-semibold text-zinc-900">Where are my funds?</h2>
-        <ul className="mt-2 space-y-2 leading-relaxed">
-          <li>
-            <strong>Wallet USDC</strong> — in your Pollar account (before
-            lending).
-          </li>
-          <li>
-            <strong>Supplied USDC</strong> — locked in the Blend pool contract{" "}
-            <a
-              href={BLEND_POOL_EXPLORER}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-xs text-brand underline"
-            >
-              {blendConfig.poolId.slice(0, 8)}…
-            </a>
-            ; shown under “Your position”.
-          </li>
-          <li>
-            <strong>Withdraw</strong> moves USDC from the pool back to your
-            wallet.
-          </li>
-        </ul>
-        <p className="mt-2 text-xs text-zinc-500">
-          Token contract:{" "}
-          <span className="font-mono">{BLEND_TESTNET_USDC_CONTRACT}</span>
-        </p>
-      </section>
-
       <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-900">Your position</h2>
-          <span className="text-xs text-zinc-500">live · 10s</span>
         </div>
 
         {positionError && (
@@ -423,13 +382,42 @@ export function BlendPanel() {
             disabled={busy}
           />
         </label>
+        {usdcBalance && Number(usdcBalance) > 0 ? (
+          <button
+            type="button"
+            onClick={() => setLendAmount(usdcBalance)}
+            className="mt-2 text-xs font-medium text-brand hover:underline"
+          >
+            Lend max ({usdcBalance} USDC)
+          </button>
+        ) : null}
+        {lendTxHash ? (
+          <a
+            href={getTxExplorerUrl(lendTxHash, network)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 block text-xs font-medium text-brand hover:underline"
+          >
+            View on explorer
+          </a>
+        ) : null}
         <button
           type="submit"
-          disabled={busy || !verified || !lendAmount || !usdcTrustlineReady}
+          disabled={lendBusy || !verified || !lendAmount || !usdcTrustlineReady}
           className="mt-4 flex h-11 w-full items-center justify-center rounded-xl bg-brand px-6 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {txStatus.kind === "signing" ? "Signing…" : "Lend to Blend"}
+          {lendBusy ? "Signing…" : "Lend"}
         </button>
+        {!verified && (
+          <p className="mt-2 text-center text-xs text-zinc-500">
+            Verifying session…
+          </p>
+        )}
+        {verified && !usdcTrustlineReady && (
+          <p className="mt-2 text-center text-xs text-amber-700">
+            Enable the Blend USDC trustline to lend.
+          </p>
+        )}
       </form>
 
       <form
@@ -450,36 +438,49 @@ export function BlendPanel() {
             disabled={busy}
           />
         </label>
-        {position && (
+        {position && canWithdrawFromPool ? (
           <button
             type="button"
-            onClick={() => setWithdrawAmount(position.supplied)}
+            onClick={() => setWithdrawAmount(suppliedUsdc)}
             className="mt-2 text-xs font-medium text-brand hover:underline"
           >
-            Withdraw max ({position.supplied} USDC)
+            Withdraw max ({suppliedUsdc} USDC supplied)
           </button>
-        )}
+        ) : position ? (
+          <p className="mt-2 text-xs text-zinc-500">
+            Nothing supplied to the pool yet. Lend first to withdraw here.
+          </p>
+        ) : null}
+        {withdrawTxHash ? (
+          <a
+            href={getTxExplorerUrl(withdrawTxHash, network)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 block text-xs font-medium text-brand hover:underline"
+          >
+            View on explorer
+          </a>
+        ) : null}
         <button
           type="submit"
-          disabled={busy || !verified || !withdrawAmount}
+          disabled={
+            withdrawBusy || !verified || !withdrawAmount || !canWithdrawFromPool
+          }
           className="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-brand bg-white px-6 text-sm font-medium text-brand transition-colors hover:bg-brand-tint disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {txStatus.kind === "signing" ? "Signing…" : "Withdraw from Blend"}
+          {withdrawBusy ? "Signing…" : "Withdraw"}
         </button>
+        {!verified && (
+          <p className="mt-2 text-center text-xs text-zinc-500">
+            Verifying session…
+          </p>
+        )}
       </form>
 
       {txStatus.kind === "success" && (
         <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
           <p className="font-medium">{txStatus.label} submitted</p>
           <p className="mt-1 break-all font-mono text-xs">{txStatus.hash}</p>
-          <a
-            href={`https://stellar.expert/explorer/testnet/tx/${txStatus.hash}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-block text-xs font-medium underline"
-          >
-            View on Stellar Expert
-          </a>
           <button
             type="button"
             onClick={() => setTxStatus({ kind: "idle" })}

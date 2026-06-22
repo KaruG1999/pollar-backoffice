@@ -1,47 +1,25 @@
-/**
- * Turn Soroban simulation / submit errors into short, actionable messages.
- */
+/** Map Soroban / simulation errors to user-facing messages. */
+
 export function parseBlendError(raw: string): string {
-  const text = raw.trim();
+  const text = raw.toLowerCase();
 
   if (
     text.includes("trustline entry is missing") ||
-    (text.includes("Error(Contract, #13)") && text.includes("transfer"))
+    text.includes("op_no_trust")
   ) {
-    return (
-      "Your wallet does not have a trustline for Blend testnet USDC yet. " +
-      "Open “Manage USDC” below (or use the faucet at testnet.blend.capital) " +
-      "to add the trustline and receive test tokens, then try lending again."
-    );
+    return "USDC trustline is not enabled for this wallet.";
   }
 
-  if (text.includes("Insufficient balance") || text.includes("insufficient")) {
-    return (
-      "Not enough USDC in your wallet. Get Blend testnet USDC from " +
-      "testnet.blend.capital (not Circle faucet — that is a different token)."
-    );
+  if (text.includes("insufficient") || text.includes("underfunded")) {
+    return "Insufficient USDC balance.";
   }
 
-  if (text.includes("/auth/refresh") || text.includes("Unauthorized")) {
-    return (
-      "Your Pollar session expired. Return to the home page, sign in again, " +
-      "then come back to this route."
-    );
-  }
-
-  if (text.startsWith("HostError:") || text.includes("Diagnostic Event")) {
+  if (text.includes("simulation") || text.includes("hostfunction")) {
     if (text.includes("trustline")) {
       return parseBlendError("trustline entry is missing");
     }
-    return (
-      "The Blend transaction could not be simulated. Make sure you have testnet XLM, " +
-      "a USDC trustline, and Blend testnet USDC balance."
-    );
+    return "Transaction simulation failed.";
   }
 
-  if (text.length > 280) {
-    return `${text.slice(0, 280)}…`;
-  }
-
-  return text;
+  return raw;
 }

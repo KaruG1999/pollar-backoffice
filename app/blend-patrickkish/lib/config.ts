@@ -2,6 +2,11 @@ import type { Network } from "@blend-capital/blend-sdk";
 
 export const USDC_DECIMALS = 7;
 
+/** Classic asset behind Blend testnet USDC SAC (from SAC `name()` on-chain). */
+export const BLEND_TESTNET_USDC_CODE = "USDC";
+export const BLEND_TESTNET_USDC_ISSUER =
+  "GATALTGTWIOT6BUDBCZM3Q4OQ4BO2COLOAZ7IYSKPLC2PMSOPPGF5V56";
+
 export const blendConfig = {
   poolId:
     process.env.NEXT_PUBLIC_BLEND_POOL_ADDRESS ??
@@ -23,6 +28,15 @@ export function getBlendNetwork(): Network {
     rpc: blendConfig.rpcUrl,
     passphrase: blendConfig.passphrase,
   };
+}
+
+export function getTxExplorerUrl(
+  hash: string,
+  network: Network = getBlendNetwork(),
+): string {
+  const isTestnet = network.passphrase.includes("Test");
+  const net = isTestnet ? "testnet" : "public";
+  return `https://stellar.expert/explorer/${net}/tx/${hash}`;
 }
 
 export function toTokenAmount(value: string, decimals = USDC_DECIMALS): bigint {

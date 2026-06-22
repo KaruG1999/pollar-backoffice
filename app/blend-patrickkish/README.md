@@ -46,20 +46,27 @@ If simulation fails, check that the wallet has testnet XLM (friendbot) and **Ble
 
 ## Testnet USDC (important)
 
-Blend on testnet uses its own USDC SAC token:
+Blend on testnet uses its own USDC — **not** Circle centre.io testnet USDC.
 
 | | |
 |---|---|
-| **Contract** | `CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU` |
+| **Code** | `USDC` |
+| **Classic issuer (G-address)** | `GATALTGTWIOT6BUDBCZM3Q4OQ4BO2COLOAZ7IYSKPLC2PMSOPPGF5V56` |
+| **SAC contract (C-address)** | `CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU` |
 | **Pool** | `CCEBVDYM32YNYCVNRXQKDFFPISJJCV557CDZEIRBEE4NCV4KHPQ44HGF` (TestnetV2) |
 
-This is **not** the same as Circle testnet USDC (`GBBD…` issuer). To lend:
+Circle testnet USDC (`GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`) derives to a **different** SAC contract and will not work with this pool.
 
-1. **Enable a USDC trustline** in Pollar (Blend page → “Enable USDC trustline” or “Manage assets”).
-2. **Get test tokens** from [testnet.blend.capital](https://testnet.blend.capital/) (faucet — use the same wallet address).
-3. Lend on `/blend-patrickkish`.
+### Custodial Pollar wallets
 
-If you see `trustline entry is missing`, step 1 was skipped. If balance is 0, complete step 2.
+Trustlines are enabled from the **Pollar dashboard**, not testnet.blend.capital:
+
+1. **Tokens & Trustlines → Add token** — use code `USDC` and issuer `GATALTGT…` above (not the centre.io preset).
+2. **Wallets → Enable trustline** on your test wallet.
+3. Copy your wallet **G-address** from `/blend-patrickkish` (shown after login) and ask Pollar ops to fund it with Blend USDC.
+4. Lend on `/blend-patrickkish`.
+
+If you see `trustline entry is missing`, the trustline is missing or points at the wrong issuer.
 
 **Where funds live:** wallet USDC → supplied in the pool (position panel) → back to wallet on withdraw.
 

@@ -23,7 +23,9 @@ export async function fetchBlendPosition(
   }
 
   const user = await pool.loadUser(userId);
-  const supplied = user.getCollateralFloat(reserve);
+  const collateral = user.getCollateralFloat(reserve);
+  const supply = user.getSupplyFloat(reserve);
+  const supplied = Math.max(collateral, supply);
 
   return {
     supplied: supplied.toFixed(USDC_DECIMALS).replace(/\.?0+$/, ""),

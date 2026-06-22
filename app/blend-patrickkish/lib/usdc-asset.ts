@@ -1,31 +1,41 @@
 import type { EnabledAssetRecord, WalletBalanceRecord } from "@pollar/core";
-import { blendConfig } from "./config";
+import {
+  BLEND_TESTNET_USDC_CODE,
+  BLEND_TESTNET_USDC_ISSUER,
+  blendConfig,
+} from "./config";
 
-/** Blend testnet USDC SAC — not Circle mainnet/testnet classic USDC. */
+/** Blend testnet USDC Soroban contract (SAC). */
 export const BLEND_TESTNET_USDC_CONTRACT = blendConfig.usdcId;
+
+export { BLEND_TESTNET_USDC_CODE, BLEND_TESTNET_USDC_ISSUER };
+
+export function isBlendUsdcClassicAsset(asset: {
+  code: string;
+  issuer?: string | null;
+}): boolean {
+  return (
+    asset.code === BLEND_TESTNET_USDC_CODE &&
+    asset.issuer === BLEND_TESTNET_USDC_ISSUER
+  );
+}
+
+/** Trustline asset for Pollar dashboard + setTrustline (classic, not SAC contract id). */
+export function blendUsdcTrustlineAsset() {
+  return {
+    code: BLEND_TESTNET_USDC_CODE,
+    issuer: BLEND_TESTNET_USDC_ISSUER,
+  };
+}
 
 export function findUsdcBalance(
   balances: WalletBalanceRecord[],
 ): WalletBalanceRecord | undefined {
-  return (
-    balances.find(
-      (b) =>
-        b.code === "USDC" &&
-        (b.issuer === BLEND_TESTNET_USDC_CONTRACT ||
-          b.issuer?.includes(BLEND_TESTNET_USDC_CONTRACT.slice(0, 8))),
-    ) ?? balances.find((b) => b.code === "USDC")
-  );
+  return balances.find((b) => isBlendUsdcClassicAsset(b));
 }
 
 export function findUsdcEnabledAsset(
   assets: EnabledAssetRecord[],
 ): EnabledAssetRecord | undefined {
-  return (
-    assets.find(
-      (a) =>
-        a.code === "USDC" &&
-        (a.issuer === BLEND_TESTNET_USDC_CONTRACT ||
-          a.issuer?.includes(BLEND_TESTNET_USDC_CONTRACT.slice(0, 8))),
-    ) ?? assets.find((a) => a.code === "USDC")
-  );
+  return assets.find((a) => isBlendUsdcClassicAsset(a));
 }
