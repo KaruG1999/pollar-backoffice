@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SupportedNetworks } from "@soroswap/sdk";
-import { buildSoroswapSwapXdr, NETWORK } from "../../soroswap-karug1999/lib/buildSwapXdr";
+import {
+  buildSoroswapSwapXdr,
+  buildSorobanAuthFallback,
+} from "../../soroswap-karug1999/lib/buildSwapXdr";
 
 // Static fallback: verified Soroswap testnet contract addresses.
 // Source: github.com/soroswap/core/public/tokens.json (network: testnet)
@@ -138,7 +140,36 @@ type SwapBody = {
 };
 
 // POST /api/soroswap-karug1999 — quote + unsigned XDR
+// POST /api/soroswap-karug1999?spike=true — direct Soroban auth XDR, no aggregator
 export async function POST(req: NextRequest) {
+  // ── Spike validation branch ──────────────────────────────────────────────────
+  // Bypasses the Soroswap aggregator entirely. Simulates a USDC SAC `approve`
+  // call exactly once, returning authentic SorobanAuthorizationEntry XDR for
+  // Pollar to sign without relying on live pool liquidity or routing.
+  if (req.nextUrl.searchParams.get("spike") === "true") {
+    let from: string;
+    try {
+      const spikeBody = (await req.json()) as { from?: string };
+      from = spikeBody.from ?? "";
+    } catch {
+      return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
+    }
+    if (!from) {
+      return NextResponse.json({ ok: false, error: "missing: from" }, { status: 400 });
+    }
+    try {
+      const SPIKE_AMOUNT = BigInt(1_000_000); // 0.1 USDC (7 decimals) — validation only
+      const xdr = await buildSorobanAuthFallback(from, SPIKE_AMOUNT);
+      return NextResponse.json({ ok: true, data: { xdr, spike: true } });
+    } catch (err) {
+      return NextResponse.json(
+        { ok: false, error: err instanceof Error ? err.message : "spike simulation failed" },
+        { status: 502 },
+      );
+    }
+  }
+
+  // ── Normal aggregator path ───────────────────────────────────────────────────
   let body: SwapBody;
   try {
     body = (await req.json()) as SwapBody;
@@ -180,16 +211,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    // Soroswap testnet REST API lacks indexed liquidity paths.
-    // On "No path found" (or any error on testnet), return a simulated quote
-    // with a valid Stellar transaction XDR so the Pollar signing flow can be demoed.
-    const isNoPath =
-      typeof err === "object" &&
-      err !== null &&
-      ((err as { detail?: string }).detail === "No path found" ||
-        (err as { error?: string }).error === "Quote Failed");
-
-    if (NETWORK === SupportedNetworks.TESTNET || isNoPath) {
+    if (process.env.NEXT_PUBLIC_USE_SWAP_MOCK === "true") {
       return NextResponse.json({
         ok: true,
         data: await buildMockQuoteResponse(amount, assetIn, assetOut, from),

@@ -37,6 +37,13 @@ type SwapState =
   | { kind: "done"; hash: string }
   | { kind: "error"; message: string };
 
+type SpikeState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "signing" }
+  | { kind: "done"; hash: string }
+  | { kind: "error"; message: string };
+
 // BigInt string → human-readable decimal (up to 6 fractional digits).
 function fmtAmount(raw: string, decimals: number): string {
   const n = BigInt(raw);
@@ -87,6 +94,7 @@ export default function SoroswapPage() {
   const [rowQuotes, setRowQuotes] = useState<RowQuotes>({});
   const [selectedToken, setSelectedToken] = useState<Token | null>(null);
   const [swapState, setSwapState] = useState<SwapState>({ kind: "idle" });
+  const [spikeState, setSpikeState] = useState<SpikeState>({ kind: "idle" });
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -223,6 +231,45 @@ export default function SoroswapPage() {
       }
     } catch (err) {
       setSwapState({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Error al firmar.",
+      });
+    }
+  }
+
+  async function handleSpike() {
+    if (!walletAddress) return;
+    setSpikeState({ kind: "loading" });
+    try {
+      const res = await fetch("/api/soroswap-karug1999?spike=true", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: walletAddress }),
+      });
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: { xdr: string; spike: boolean };
+        error?: string;
+      };
+      if (!res.ok || !json.ok || !json.data?.xdr) {
+        setSpikeState({ kind: "error", message: json.error ?? "Spike simulation failed" });
+        return;
+      }
+      setSpikeState({ kind: "signing" });
+      const outcome = await signAndSubmitTx(json.data.xdr);
+      if (outcome.status === "success" || outcome.status === "pending") {
+        setSpikeState({ kind: "done", hash: outcome.hash });
+      } else {
+        setSpikeState({
+          kind: "error",
+          message:
+            (outcome as { details?: string; resultCode?: string }).details ??
+            (outcome as { details?: string; resultCode?: string }).resultCode ??
+            "Transaction failed",
+        });
+      }
+    } catch (err) {
+      setSpikeState({
         kind: "error",
         message: err instanceof Error ? err.message : "Error al firmar.",
       });
@@ -403,6 +450,54 @@ export default function SoroswapPage() {
             )}
           </div>
         )}
+
+        {/* Spike Validation Panel — Issue #4: Soroban auth signing stress-test */}
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/50 p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+              Spike Validation
+            </span>
+            <span className="text-xs text-amber-500">Soroban Auth · Issue #4</span>
+          </div>
+          <p className="text-xs leading-relaxed text-amber-700/80">
+            Bypasses the Soroswap aggregator and simulates a direct USDC SAC{" "}
+            <code className="rounded bg-amber-100 px-1 font-mono text-[11px]">approve</code>{" "}
+            call, producing authentic{" "}
+            <code className="rounded bg-amber-100 px-1 font-mono text-[11px]">
+              SorobanAuthorizationEntry
+            </code>{" "}
+            XDR for Pollar to intercept and sign.
+          </p>
+
+          {spikeState.kind === "done" && (
+            <div className="break-all rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+              Spike firmado — tx{" "}
+              <span className="font-mono">{spikeState.hash}</span>
+            </div>
+          )}
+          {spikeState.kind === "error" && (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {spikeState.message}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSpike}
+            disabled={
+              spikeState.kind === "loading" ||
+              spikeState.kind === "signing" ||
+              !verified
+            }
+            className="h-10 w-full rounded-xl border border-amber-300 bg-white text-sm font-medium text-amber-700 transition-colors hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {spikeState.kind === "loading"
+              ? "Simulando…"
+              : spikeState.kind === "signing"
+                ? "Firmando…"
+                : "[Run Spike Validation]"}
+          </button>
+        </div>
 
         <p className="text-center text-xs text-zinc-400">Testnet · Soroswap Aggregator</p>
       </div>
